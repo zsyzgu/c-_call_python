@@ -1,55 +1,69 @@
 #include <Python.h>
 #include <iostream>
 #include <string>
+#include <Windows.h>
 
 using namespace std;
 
-int main() {
+const int FEATURES_LEN = 768;
+const int HAND_DATA_LEN = 60;
+
+PyObject *pFunc;
+
+void pyInit() {
 	Py_Initialize();
 	if (!Py_IsInitialized()) {
 		cout << "init error" << endl;
-		return -1;
+		return;
 	}
 	
-	PyObject* pFile(0);
+	PyObject *pFile, *pModule, *pDct;
 	pFile = PyString_FromString("leap");
 	
-	PyObject* pModule(0);
 	pModule = PyImport_Import(pFile);
 	if (!pModule) {
 		cout << "can not find py file" << endl;
-		return -1;
+		return;
 	}
 	
-	PyObject* pDct(0);
 	pDct = PyModule_GetDict(pModule);
 	if (!pDct) {
 		cout << "pDct error" << endl;
 	}
 	
-	PyObject* pStart(0);
-	pStart = PyDict_GetItemString(pDct, "start");
+	pFunc = PyDict_GetItemString(pDct, "get_hand_data");
+}
+
+extern "C" __declspec(dllexport) int* getImageFeatures() {
+	static int features[FEATURES_LEN];
 	
-	PyObject* pUpdate(0);
-	pUpdate = PyDict_GetItemString(pDct, "update");
+	//TODO
+	for (int i = 0; i < FEATURES_LEN; i++) {
+		features[i] = i;
+	}
+	//END
 	
-	//s 字符串 , 均是C 风格的字符串
-	//i 整型
-	//f 浮点数
-	//o 表示一个 python 对象
-	
-	PyObject* pStartArgs(0);
-	pStartArgs = PyTuple_New(0);
-	PyObject_CallObject(pStart, pStartArgs);
-	
-	PyObject* pUpdateArgs(0);
-	pUpdateArgs = PyTuple_New(2);
-	PyTuple_SetItem(pUpdateArgs, 0, Py_BuildValue("i", 1));
-	PyTuple_SetItem(pUpdateArgs, 1, Py_BuildValue("i", 2));
-	PyObject* ret = PyObject_CallObject(pUpdate, pUpdateArgs);
-	
-	int result = PyInt_AS_LONG(ret);
-	cout << result << endl;
+	return features;
+}
+
+extern "C" __declspec(dllexport) int* getHandData() {	
+	int* features = getImageFeatures();
+	PyObject* pUpdateArgs = PyTuple_New(FEATURES_LEN);
+	for (int i = 0; i < FEATURES_LEN; i++) {
+		PyTuple_SetItem(pUpdateArgs, i, Py_BuildValue("i", features[i]));
+	}
+	PyObject* pHandData = PyObject_CallObject(pFunc, pUpdateArgs);
+	static int handData[HAND_DATA_LEN];
+	for (int i = 0; i < HAND_DATA_LEN; i++) {
+		PyObject* result = PyList_GetItem(pHandData, i);
+		handData[i] = PyInt_AS_LONG(result);
+	}
+	return handData;
+}
+
+int main() {
+	pyInit();
+	getHandData();
 	
 	return 0;
 }
